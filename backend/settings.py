@@ -100,11 +100,16 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5175",
-    "http://localhost:5176",
-    "http://127.0.0.1:5176",
+    "https://smart-storage-locker-management-system.onrender.com",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://smart-storage-locker-management-system.onrender.com",
+    "https://smart-locker-api-rmg2.onrender.com",
+]
+
+ALLOWED_HOSTS = [
+    "smart-locker-api-rmg2.onrender.com",
+    "localhost",
+    "127.0.0.1",
 ]
