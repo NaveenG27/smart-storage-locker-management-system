@@ -1,0 +1,24 @@
+# --- Frontend (React/Node) ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+
+# --- Backend (Django/Python) ---
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+db.sqlite3
+media/
+staticfiles/
+
+# --- Editor & OS ---
+.vscode/
+.idea/
+.DS_Store
+*.sw?

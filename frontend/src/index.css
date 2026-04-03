@@ -1,0 +1,6 @@
+/* Main application styles handled by Tailwind CDN for stability in the development environment */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
