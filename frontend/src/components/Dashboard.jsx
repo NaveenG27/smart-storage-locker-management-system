@@ -231,22 +231,37 @@ const Dashboard = () => {
 
                     {/* SIDEBAR: ACTIVE & RECENT RELEASES */}
                     <div className="lg:col-span-1 space-y-6">
-                        {/* ACTIVE RESERVATIONS */}
+                        {/* UPDATED ACTIVE RESERVATIONS WITH RELEASE BUTTON */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                                 <h2 className="text-lg font-bold flex items-center gap-2"><Calendar size={18} className="text-indigo-500" /> {isAdmin ? 'System Active' : 'My Active'}</h2>
                             </div>
-                            <div className="p-6 space-y-4 max-h-[300px] overflow-y-auto">
+                            <div className="p-6 space-y-4 max-h-[400px] overflow-y-auto">
                                 {activeReservations.length > 0 ? activeReservations.map(res => (
-                                    <div key={res.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Locker #{res.locker_number}</span>
+                                    <div key={res.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50 shadow-sm transition-all hover:border-indigo-100">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Locker #{res.locker_number}</span>
+                                                <div className="text-sm font-medium text-slate-700 mt-1 flex items-center gap-1"><UserIcon size={12} /> {res.user_username}</div>
+                                            </div>
+                                            {/* Top right quick release icon */}
                                             {(isAdmin || res.user_username === currentUsername) && (
-                                                <button onClick={() => handleRelease(res.id)} className="text-slate-300 hover:text-red-500"><XCircle size={18} /></button>
+                                                <button onClick={() => handleRelease(res.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                                    <XCircle size={18} />
+                                                </button>
                                             )}
                                         </div>
-                                        <div className="text-xs font-medium text-slate-600 flex items-center gap-1"><UserIcon size={12} /> {res.user_username}</div>
-                                        <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Clock size={10} /> Until: {new Date(res.reserved_until).toLocaleTimeString()}</div>
+                                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mb-3"><Clock size={10} /> Until: {new Date(res.reserved_until).toLocaleTimeString()}</div>
+                                        
+                                        {/* Main Release Button */}
+                                        {(isAdmin || res.user_username === currentUsername) && (
+                                            <button 
+                                                onClick={() => handleRelease(res.id)}
+                                                className="w-full py-1.5 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100 hover:bg-red-600 hover:text-white transition-all uppercase tracking-wider"
+                                            >
+                                                Release Locker
+                                            </button>
+                                        )}
                                     </div>
                                 )) : <p className="text-center text-slate-400 text-sm py-4">No active reservations.</p>}
                             </div>
@@ -266,7 +281,9 @@ const Dashboard = () => {
                                                 <span className="text-emerald-600">Released</span>
                                             </div>
                                             <p className="text-[10px] text-slate-500 mt-1">User: {history.user_username}</p>
-                                            <p className="text-[10px] text-slate-400">{new Date(history.released_at).toLocaleString()}</p>
+                                            <p className="text-[10px] text-slate-400">
+                                                {history.released_at ? new Date(history.released_at).toLocaleString() : 'N/A'}
+                                            </p>
                                         </div>
                                     )) : <p className="text-center text-slate-400 text-sm py-4">No recent history.</p>}
                                 </div>
