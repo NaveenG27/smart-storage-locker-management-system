@@ -23,7 +23,7 @@ try:
             "type": os.getenv("FIREBASE_TYPE"),
             "project_id": os.getenv("FIREBASE_PROJECT_ID"),
             "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-            "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
+            "private_key": os.getenv("FIREBASE_PRIVATE_KEY", "").replace('\\n', '\n'),
             "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
             "token_uri": "https://oauth2.googleapis.com/token",
         }
@@ -78,8 +78,14 @@ class LockerViewSet(viewsets.ModelViewSet):
     serializer_class = LockerSerializer
 
     def get_permissions(self):
+        # Fix: Allow anyone to view lockers to stop the 401 error
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        
+        # Admin-only for editing
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAdminUser()]
+            
         return [permissions.IsAuthenticated()]
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -87,7 +93,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Admin sees everything, Users see only their own
         if self.request.user.is_staff:
             return Reservation.objects.all().order_by('-reserved_at')
         return Reservation.objects.filter(user=self.request.user).order_by('-reserved_at')
@@ -125,11 +130,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAdminUser])
     def recent_releases(self, request):
-        """
-        NEW: Returns the last 10 released (inactive) reservations for the Admin Dashboard.
-        URL: /api/reservations/recent_releases/
-        """
-        # We filter for is_active=False to show completed sessions
         released = Reservation.objects.filter(is_active=False).order_by('-reserved_at')[:10]
         serializer = self.get_serializer(released, many=True)
         return Response(serializer.data)

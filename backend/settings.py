@@ -98,10 +98,7 @@ REST_FRAMEWORK = {
     ),
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "https://smart-storage-locker-management-system.onrender.com",
-]
+CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://smart-storage-locker-management-system.onrender.com",
@@ -112,4 +109,6 @@ ALLOWED_HOSTS = [
     "smart-locker-api-rmg2.onrender.com",
     "localhost",
     "127.0.0.1",
+    "192.168.29.99",  # Add your Laptop's Wi-Fi IP here
 ]
+
