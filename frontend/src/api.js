@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Set this to true when testing on your computer
 // Set this to false before you push to GitHub/Render
-const isLocal = true; 
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 const BASE_URL = isLocal 
     ? 'http://127.0.0.1:8000' 
