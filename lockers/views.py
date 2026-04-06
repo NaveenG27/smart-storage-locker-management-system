@@ -16,21 +16,18 @@ from .serializers import LockerSerializer, ReservationSerializer, UserSerializer
 # --- 1. LOAD ENVIRONMENT VARIABLES ---
 load_dotenv()
 
-# --- 2. FIREBASE INITIALIZATION (SECURE METHOD) ---
+# --- 2. FIREBASE INITIALIZATION ---
 try:
     if not firebase_admin._apps:
-        # We build the config dictionary using the keys from your .env file
         firebase_config = {
             "type": os.getenv("FIREBASE_TYPE"),
             "project_id": os.getenv("FIREBASE_PROJECT_ID"),
             "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-            # The .replace handles the newline characters in the private key string
             "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
             "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
             "token_uri": "https://oauth2.googleapis.com/token",
         }
         
-        # Initialize using the dictionary instead of a JSON file path
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
             'databaseURL': f'https://{os.getenv("FIREBASE_PROJECT_ID")}-default-rtdb.firebaseio.com/' 
@@ -41,10 +38,6 @@ except Exception as e:
 
 # --- 3. REAL-TIME SYNC HELPER ---
 def trigger_realtime_sync():
-    """
-    Updates a timestamp in Firebase. React frontend listens to this 
-    path to know when to refresh the locker data.
-    """
     try:
         ref = db.reference('locker_sync')
         ref.set({
@@ -94,13 +87,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Admin sees everything, Users see only their own
         if self.request.user.is_staff:
             return Reservation.objects.all().order_by('-reserved_at')
         return Reservation.objects.filter(user=self.request.user).order_by('-reserved_at')
 
     def perform_create(self, serializer):
         locker = serializer.validated_data['locker']
-        
         if locker.status != 'available':
             raise ValidationError({'error': 'Locker is already occupied'})
         
@@ -128,5 +121,15 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation.save()
         
         trigger_realtime_sync()
-        
         return Response({'status': 'locker released', 'locker_number': locker.locker_number})
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAdminUser])
+    def recent_releases(self, request):
+        """
+        NEW: Returns the last 10 released (inactive) reservations for the Admin Dashboard.
+        URL: /api/reservations/recent_releases/
+        """
+        # We filter for is_active=False to show completed sessions
+        released = Reservation.objects.filter(is_active=False).order_by('-reserved_at')[:10]
+        serializer = self.get_serializer(released, many=True)
+        return Response(serializer.data)

@@ -3,13 +3,14 @@ import api from '../api';
 import { 
     Lock, Unlock, LogOut, ShieldCheck, 
     Search, Plus, Calendar, MapPin, 
-    User as UserIcon, Clock, XCircle, Trash2, Menu
+    User as UserIcon, Clock, XCircle, Trash2, Menu, History
 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
     const [lockers, setLockers] = useState([]);
     const [reservations, setReservations] = useState([]);
+    const [recentReleases, setRecentReleases] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [showModal, setShowModal] = useState(false);
     const [activeLocker, setActiveLocker] = useState(null);
@@ -17,7 +18,7 @@ const Dashboard = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [newLocker, setNewLocker] = useState({ locker_number: '', location: '' });
     const [loading, setLoading] = useState(true);
-    const [isMenuOpen, setIsMenuOpen] = useState(false); // For mobile menu toggle
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     
     const navigate = useNavigate();
     const isAdmin = String(localStorage.getItem('is_admin')) === 'true';
@@ -34,12 +35,20 @@ const Dashboard = () => {
     const fetchData = async (showLoading = false) => {
         if (showLoading) setLoading(true);
         try {
-            const [lockersRes, reservationsRes] = await Promise.all([
+            const requests = [
                 api.get('/api/lockers/'),
                 api.get('/api/reservations/')
-            ]);
+            ];
+
+            if (isAdmin) {
+                requests.push(api.get('/api/reservations/recent_releases/'));
+            }
+
+            const [lockersRes, reservationsRes, historyRes] = await Promise.all(requests);
+            
             setLockers(lockersRes.data);
             setReservations(reservationsRes.data);
+            if (historyRes) setRecentReleases(historyRes.data);
         } catch (error) {
             console.error("Fetch Error:", error);
             if (error.response?.status === 401) {
@@ -55,8 +64,7 @@ const Dashboard = () => {
         setActiveLocker(locker);
         const defaultTime = new Date();
         defaultTime.setHours(defaultTime.getHours() + 1);
-        const formatted = defaultTime.toISOString().slice(0, 16);
-        setReservedUntil(formatted);
+        setReservedUntil(defaultTime.toISOString().slice(0, 16));
         setShowModal(true);
     };
 
@@ -70,8 +78,7 @@ const Dashboard = () => {
             fetchData(); 
             alert(`Locker #${activeLocker.locker_number} reserved successfully!`);
         } catch (error) {
-            const serverMsg = error.response?.data?.error || "Locker might already be taken.";
-            alert("Reservation Failed: " + serverMsg);
+            alert("Reservation Failed: " + (error.response?.data?.error || "Locker taken."));
         }
     };
 
@@ -82,7 +89,7 @@ const Dashboard = () => {
             fetchData();
             alert("Locker released successfully!");
         } catch (error) {
-            alert("Failed to release locker. " + (error.response?.data?.error || ""));
+            alert("Failed to release locker.");
         }
     };
 
@@ -93,21 +100,20 @@ const Dashboard = () => {
             setShowAddModal(false);
             setNewLocker({ locker_number: '', location: '' });
             fetchData();
-            alert("New locker added successfully!");
+            alert("New locker added!");
         } catch (error) {
-            alert("Failed to add locker. Ensure the number is unique.");
+            alert("Failed to add locker. Ensure number is unique.");
         }
     };
 
     const handleDeleteLocker = async (lockerId, lockerNumber) => {
-        if (!window.confirm(`Are you sure you want to permanently delete Locker #${lockerNumber}?`)) return;
+        if (!window.confirm(`Permanently delete Locker #${lockerNumber}?`)) return;
         try {
             await api.delete(`/api/lockers/${lockerId}/`);
-            fetchData(false); 
-            alert("Locker deleted successfully.");
+            fetchData();
+            alert("Locker deleted.");
         } catch (error) {
-            console.error("Delete Error:", error);
-            alert("Failed to delete locker. It might have an active reservation.");
+            alert("Cannot delete locker with active history.");
         }
     };
 
@@ -125,285 +131,170 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            {/* Responsive Navigation */}
+            {/* NAVIGATION BAR */}
             <nav className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
-                        {/* Logo */}
                         <div className="flex items-center gap-2">
-                            <div className="bg-blue-600 p-2 rounded-lg text-white">
-                                <Lock size={20} />
-                            </div>
+                            <div className="bg-blue-600 p-2 rounded-lg text-white"><Lock size={20} /></div>
                             <span className="text-xl font-bold tracking-tight text-slate-800">SmartLocker</span>
                         </div>
 
-                        {/* Desktop Search & Actions */}
+                        {/* Desktop Nav */}
                         <div className="hidden md:flex items-center gap-6 flex-1 justify-end">
                             <div className="relative">
                                 <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
                                 <input 
-                                    type="text" 
-                                    placeholder="Search lockers..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-full w-64 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
+                                    type="text" placeholder="Search lockers..." 
+                                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-full w-64 focus:ring-2 focus:ring-blue-500 text-sm"
                                 />
                             </div>
-                            <div className="h-6 w-px bg-slate-200"></div>
                             <div className="flex items-center gap-3">
-                                {isAdmin && (
-                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold border border-amber-100">
-                                        <ShieldCheck size={14} /> ADMIN
-                                    </div>
-                                )}
+                                {isAdmin && <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold border border-amber-100"><ShieldCheck size={14} /> ADMIN</div>}
                                 <span className="text-sm font-medium text-slate-600">Hi, {currentUsername}</span>
-                                <button 
-                                    onClick={handleLogout}
-                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                                    title="Logout"
-                                >
-                                    <LogOut size={20} />
-                                </button>
+                                <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-600 rounded-full"><LogOut size={20} /></button>
                             </div>
                         </div>
 
-                        {/* Mobile Menu Button */}
+                        {/* Mobile Nav Toggle */}
                         <div className="md:hidden flex items-center gap-4">
-                            {isAdmin && <ShieldCheck size={18} className="text-amber-500" />}
-                            <button 
-                                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-                            >
-                                {isMenuOpen ? <XCircle size={24} /> : <Menu size={24} />}
-                            </button>
+                            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-slate-600"><Menu size={24} /></button>
                         </div>
                     </div>
-
-                    {/* Mobile Dropdown Menu */}
+                    {/* Mobile Menu */}
                     {isMenuOpen && (
-                        <div className="md:hidden pb-4 space-y-4 border-t border-slate-100 pt-4 animate-in slide-in-from-top-2">
-                            <div className="relative px-2">
-                                <Search className="absolute left-5 top-2.5 text-slate-400" size={18} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search lockers..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-                            <div className="flex items-center justify-between px-2">
-                                <span className="text-sm font-medium text-slate-600">User: {currentUsername}</span>
-                                <button 
-                                    onClick={handleLogout}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-lg"
-                                >
-                                    <LogOut size={18} /> Logout
-                                </button>
-                            </div>
+                        <div className="md:hidden pb-4 space-y-4 border-t pt-4">
+                            <input 
+                                type="text" placeholder="Search..." 
+                                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full px-4 py-2 bg-slate-100 rounded-lg text-sm"
+                            />
+                            <button onClick={handleLogout} className="w-full py-2 text-red-600 bg-red-50 rounded-lg font-bold">Logout</button>
                         </div>
                     )}
                 </div>
             </nav>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* HEADER SECTION */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">System Dashboard</h1>
-                        <p className="text-slate-500 mt-1">Manage and monitor storage locker availability in real-time.</p>
+                        <p className="text-slate-500 mt-1">Manage and monitor storage lockers in real-time.</p>
                     </div>
                     {isAdmin && (
-                        <button 
-                            onClick={() => setShowAddModal(true)}
-                            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-200 active:scale-95"
-                        >
+                        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-200">
                             <Plus size={20} /> Add New Locker
                         </button>
                     )}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* MAIN CONTENT: LOCKER GRID */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                <h2 className="text-lg font-bold flex items-center gap-2">
-                                    <MapPin size={18} className="text-blue-500" /> Locker Availability
-                                </h2>
-                                <span className="text-xs font-semibold px-2 py-1 bg-slate-200 text-slate-600 rounded">
-                                    {filteredLockers.length} Total
-                                </span>
+                                <h2 className="text-lg font-bold flex items-center gap-2"><MapPin size={18} className="text-blue-500" /> Locker Availability</h2>
+                                <span className="text-xs font-semibold px-2 py-1 bg-slate-200 text-slate-600 rounded">{filteredLockers.length} Total</span>
                             </div>
                             
                             <div className="p-6">
                                 {loading ? (
-                                    <div className="flex justify-center py-12">
-                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                                    </div>
+                                    <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>
                                 ) : filteredLockers.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                                         {filteredLockers.map(locker => (
-                                            <div key={locker.id} className={`group p-5 rounded-2xl border-2 transition-all duration-200 ${
-                                                locker.status === 'available' 
-                                                ? 'border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/30' 
-                                                : 'border-slate-100 bg-slate-50 opacity-80'
-                                            }`}>
+                                            <div key={locker.id} className={`p-5 rounded-2xl border-2 transition-all ${locker.status === 'available' ? 'border-slate-100 hover:border-emerald-200' : 'bg-slate-50 opacity-80'}`}>
                                                 <div className="flex justify-between items-start mb-4">
-                                                    <div className={`p-3 rounded-xl ${
-                                                        locker.status === 'available' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'
-                                                    }`}>
+                                                    <div className={`p-3 rounded-xl ${locker.status === 'available' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>
                                                         {locker.status === 'available' ? <Unlock size={24} /> : <Lock size={24} />}
                                                     </div>
-                                                    
-                                                    <div className="flex items-center gap-2">
-                                                        {isAdmin && (
-                                                            <button 
-                                                                onClick={() => handleDeleteLocker(locker.id, locker.locker_number)}
-                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                title="Delete Locker"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        )}
-                                                        <span className={`text-[10px] uppercase font-black px-2 py-1 rounded tracking-widest ${
-                                                            locker.status === 'available' 
-                                                            ? 'bg-emerald-100 text-emerald-700' 
-                                                            : 'bg-rose-100 text-rose-700'
-                                                        }`}>
-                                                            {locker.status}
-                                                        </span>
-                                                    </div>
+                                                    {isAdmin && <button onClick={() => handleDeleteLocker(locker.id, locker.locker_number)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={16} /></button>}
                                                 </div>
-                                                
                                                 <h3 className="font-bold text-lg text-slate-800">Locker #{locker.locker_number}</h3>
-                                                <div className="flex items-center gap-1.5 text-slate-500 text-sm mt-1 mb-6">
-                                                    <MapPin size={14} /> {locker.location}
-                                                </div>
-
+                                                <div className="flex items-center gap-1.5 text-slate-500 text-sm mt-1 mb-6"><MapPin size={14} /> {locker.location}</div>
                                                 <button
                                                     onClick={() => handleReserve(locker)}
                                                     disabled={locker.status !== 'available'}
-                                                    className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
-                                                        locker.status === 'available' 
-                                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100' 
-                                                        : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                                                    }`}
+                                                    className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all ${locker.status === 'available' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-300 text-slate-500'}`}
                                                 >
                                                     {locker.status === 'available' ? 'Reserve Now' : 'Occupied'}
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <Search size={48} className="mx-auto text-slate-200 mb-4" />
-                                        <p className="text-slate-400 font-medium">No lockers match your search.</p>
-                                    </div>
-                                )}
+                                ) : <div className="text-center py-12 text-slate-400">No lockers found.</div>}
                             </div>
                         </div>
                     </div>
 
+                    {/* SIDEBAR: ACTIVE & RECENT RELEASES */}
                     <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-24">
+                        {/* ACTIVE RESERVATIONS */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                                <h2 className="text-lg font-bold flex items-center gap-2">
-                                    <Calendar size={18} className="text-indigo-500" /> 
-                                    {isAdmin ? 'System Reservations' : 'My Reservations'}
-                                </h2>
+                                <h2 className="text-lg font-bold flex items-center gap-2"><Calendar size={18} className="text-indigo-500" /> {isAdmin ? 'System Active' : 'My Active'}</h2>
                             </div>
-                            
-                            <div className="p-6 max-h-[calc(100vh-250px)] overflow-y-auto">
-                                {activeReservations.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {activeReservations.map(res => (
-                                            <div key={res.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                                                            Locker #{res.locker_number}
-                                                        </span>
-                                                        <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-slate-600">
-                                                            <UserIcon size={12} strokeWidth={3} /> {res.user_username}
-                                                        </div>
-                                                    </div>
-                                                    {(isAdmin || res.user_username === currentUsername) && (
-                                                        <button 
-                                                            onClick={() => handleRelease(res.id)}
-                                                            className="text-slate-300 hover:text-red-500 transition-colors"
-                                                            title="Cancel/Release"
-                                                        >
-                                                            <XCircle size={18} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                
-                                                <div className="flex items-center gap-3 text-xs text-slate-500">
-                                                    <div className="flex items-center gap-1">
-                                                        <Clock size={12} /> Until: {new Date(res.reserved_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                    <div className="h-1 w-1 bg-slate-300 rounded-full"></div>
-                                                    <div className="text-indigo-500 font-semibold italic">Active</div>
-                                                </div>
-
-                                                {(isAdmin || res.user_username === currentUsername) && (
-                                                    <button 
-                                                        onClick={() => handleRelease(res.id)}
-                                                        className="w-full mt-4 py-2 bg-white text-rose-600 border border-rose-100 rounded-lg text-xs font-bold hover:bg-rose-50 transition-colors uppercase tracking-tight"
-                                                    >
-                                                        Release Locker
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
+                            <div className="p-6 space-y-4 max-h-[300px] overflow-y-auto">
+                                {activeReservations.length > 0 ? activeReservations.map(res => (
+                                    <div key={res.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Locker #{res.locker_number}</span>
+                                            {(isAdmin || res.user_username === currentUsername) && (
+                                                <button onClick={() => handleRelease(res.id)} className="text-slate-300 hover:text-red-500"><XCircle size={18} /></button>
+                                            )}
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-600 flex items-center gap-1"><UserIcon size={12} /> {res.user_username}</div>
+                                        <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><Clock size={10} /> Until: {new Date(res.reserved_until).toLocaleTimeString()}</div>
                                     </div>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <Calendar size={32} className="mx-auto text-slate-200 mb-3" />
-                                        <p className="text-slate-400 text-sm">No active reservations.</p>
-                                    </div>
-                                )}
+                                )) : <p className="text-center text-slate-400 text-sm py-4">No active reservations.</p>}
                             </div>
                         </div>
+
+                        {/* RECENT RELEASES (HISTORY) - ADMIN ONLY */}
+                        {isAdmin && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                    <h2 className="text-lg font-bold flex items-center gap-2 text-slate-700"><History size={18} className="text-slate-500" /> Recent Releases</h2>
+                                </div>
+                                <div className="p-6 space-y-3 max-h-[400px] overflow-y-auto">
+                                    {recentReleases.length > 0 ? recentReleases.map(history => (
+                                        <div key={history.id} className="p-3 rounded-lg border border-slate-100 bg-slate-50/30">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span className="text-slate-700">Locker #{history.locker_number}</span>
+                                                <span className="text-emerald-600">Released</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 mt-1">User: {history.user_username}</p>
+                                            <p className="text-[10px] text-slate-400">{new Date(history.released_at).toLocaleString()}</p>
+                                        </div>
+                                    )) : <p className="text-center text-slate-400 text-sm py-4">No recent history.</p>}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
 
-            {/* MODALS (UNCHANGED) */}
+            {/* MODALS */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                            <h2 className="text-xl font-bold text-slate-800">Add New Locker</h2>
-                            <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <XCircle size={24} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleAddLocker} className="p-8 space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Locker Identifier</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="e.g. L-104" 
-                                    required 
-                                    value={newLocker.locker_number}
-                                    onChange={(e) => setNewLocker({...newLocker, locker_number: e.target.value})}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Facility Location</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="e.g. Level 3, Hallway B" 
-                                    required 
-                                    value={newLocker.location}
-                                    onChange={(e) => setNewLocker({...newLocker, location: e.target.value})}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                />
-                            </div>
-                            <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Cancel</button>
-                                <button type="submit" className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100">Create</button>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+                        <h2 className="text-xl font-bold mb-6">Add New Locker</h2>
+                        <form onSubmit={handleAddLocker} className="space-y-4">
+                            <input 
+                                placeholder="Locker Number" required
+                                value={newLocker.locker_number} onChange={(e) => setNewLocker({...newLocker, locker_number: e.target.value})}
+                                className="w-full px-4 py-2 border rounded-lg"
+                            />
+                            <input 
+                                placeholder="Location" required
+                                value={newLocker.location} onChange={(e) => setNewLocker({...newLocker, location: e.target.value})}
+                                className="w-full px-4 py-2 border rounded-lg"
+                            />
+                            <div className="flex gap-3 pt-4">
+                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-2 bg-slate-100 rounded-lg">Cancel</button>
+                                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg">Create</button>
                             </div>
                         </form>
                     </div>
@@ -412,27 +303,18 @@ const Dashboard = () => {
 
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-8 text-center">
-                            <div className="bg-emerald-50 w-20 h-20 rounded-full flex justify-center items-center mx-auto mb-6">
-                                <Unlock size={40} className="text-emerald-600" />
-                            </div>
-                            <h2 className="text-2xl font-black text-slate-800">Secure Locker</h2>
-                            <p className="text-slate-500 mt-2">You are reserving <span className="font-bold text-slate-700">#{activeLocker?.locker_number}</span></p>
-                            <div className="mt-8 text-left">
-                                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-3 text-center">Release Time</label>
-                                <input 
-                                    type="datetime-local"
-                                    value={reservedUntil}
-                                    min={new Date().toISOString().slice(0, 16)}
-                                    onChange={(e) => setReservedUntil(e.target.value)}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono text-center"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex bg-slate-50 border-t border-slate-100">
-                            <button onClick={() => setShowModal(false)} className="flex-1 px-8 py-5 text-slate-500 font-bold hover:text-slate-700">Cancel</button>
-                            <button onClick={confirmReservation} className="flex-1 px-8 py-5 bg-emerald-600 text-white font-bold hover:bg-emerald-700">Confirm</button>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-8 text-center">
+                        <div className="bg-emerald-50 w-16 h-16 rounded-full flex justify-center items-center mx-auto mb-4"><Unlock size={32} className="text-emerald-600" /></div>
+                        <h2 className="text-xl font-bold">Secure Locker</h2>
+                        <p className="text-sm text-slate-500 mb-6">Reserving Locker #{activeLocker?.locker_number}</p>
+                        <input 
+                            type="datetime-local" value={reservedUntil}
+                            onChange={(e) => setReservedUntil(e.target.value)}
+                            className="w-full px-4 py-2 border rounded-lg mb-6"
+                        />
+                        <div className="flex gap-3">
+                            <button onClick={() => setShowModal(false)} className="flex-1 py-2 font-bold text-slate-500">Cancel</button>
+                            <button onClick={confirmReservation} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-bold">Confirm</button>
                         </div>
                     </div>
                 </div>
