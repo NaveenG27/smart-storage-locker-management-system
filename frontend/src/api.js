@@ -6,7 +6,7 @@ const isLocal = true;
 
 const BASE_URL = isLocal 
     ? 'http://127.0.0.1:8000' 
-    : 'https://smart-storage-locker-management-system.onrender.com';
+    : 'https://smart-locker-api-rmg2.onrender.com';
 
 const api = axios.create({
     baseURL: BASE_URL,
