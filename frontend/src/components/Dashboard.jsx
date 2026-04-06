@@ -162,15 +162,36 @@ const Dashboard = () => {
                             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-slate-600"><Menu size={24} /></button>
                         </div>
                     </div>
-                    {/* Mobile Menu */}
+
+                    {/* MOBILE MENU UPDATED */}
                     {isMenuOpen && (
                         <div className="md:hidden pb-4 space-y-4 border-t pt-4">
-                            <input 
-                                type="text" placeholder="Search..." 
-                                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-4 py-2 bg-slate-100 rounded-lg text-sm"
-                            />
-                            <button onClick={handleLogout} className="w-full py-2 text-red-600 bg-red-50 rounded-lg font-bold">Logout</button>
+                            {/* User Profile Section for Mobile */}
+                            <div className="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                                        <UserIcon size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1">Signed in as</p>
+                                        <p className="text-sm font-bold text-slate-800">{currentUsername}</p>
+                                    </div>
+                                </div>
+                                {isAdmin && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">ADMIN</span>}
+                            </div>
+
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                                <input 
+                                    type="text" placeholder="Search lockers..." 
+                                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 border-none"
+                                />
+                            </div>
+                            
+                            <button onClick={handleLogout} className="w-full py-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-all">
+                                <LogOut size={18} /> Logout
+                            </button>
                         </div>
                     )}
                 </div>
@@ -231,7 +252,6 @@ const Dashboard = () => {
 
                     {/* SIDEBAR: ACTIVE & RECENT RELEASES */}
                     <div className="lg:col-span-1 space-y-6">
-                        {/* UPDATED ACTIVE RESERVATIONS WITH RELEASE BUTTON */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                                 <h2 className="text-lg font-bold flex items-center gap-2"><Calendar size={18} className="text-indigo-500" /> {isAdmin ? 'System Active' : 'My Active'}</h2>
@@ -244,7 +264,6 @@ const Dashboard = () => {
                                                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Locker #{res.locker_number}</span>
                                                 <div className="text-sm font-medium text-slate-700 mt-1 flex items-center gap-1"><UserIcon size={12} /> {res.user_username}</div>
                                             </div>
-                                            {/* Top right quick release icon */}
                                             {(isAdmin || res.user_username === currentUsername) && (
                                                 <button onClick={() => handleRelease(res.id)} className="text-slate-300 hover:text-red-500 transition-colors">
                                                     <XCircle size={18} />
@@ -253,7 +272,6 @@ const Dashboard = () => {
                                         </div>
                                         <div className="text-[10px] text-slate-400 flex items-center gap-1 mb-3"><Clock size={10} /> Until: {new Date(res.reserved_until).toLocaleTimeString()}</div>
                                         
-                                        {/* Main Release Button */}
                                         {(isAdmin || res.user_username === currentUsername) && (
                                             <button 
                                                 onClick={() => handleRelease(res.id)}
@@ -267,7 +285,7 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        {/* RECENT RELEASES (HISTORY) - ADMIN ONLY */}
+                        {/* UPDATED RECENT RELEASES SECTION */}
                         {isAdmin && (
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                                 <div className="p-6 border-b border-slate-100 bg-slate-50/50">
@@ -281,9 +299,13 @@ const Dashboard = () => {
                                                 <span className="text-emerald-600">Released</span>
                                             </div>
                                             <p className="text-[10px] text-slate-500 mt-1">User: {history.user_username}</p>
-                                            <p className="text-[10px] text-slate-400">
-                                                {history.released_at ? new Date(history.released_at).toLocaleString() : 'N/A'}
-                                            </p>
+                                            
+                                            {/* N/A REMOVAL LOGIC */}
+                                            {history.released_at && history.released_at !== "N/A" && (
+                                                <p className="text-[10px] text-slate-400">
+                                                    {new Date(history.released_at).toLocaleString()}
+                                                </p>
+                                            )}
                                         </div>
                                     )) : <p className="text-center text-slate-400 text-sm py-4">No recent history.</p>}
                                 </div>
@@ -293,7 +315,7 @@ const Dashboard = () => {
                 </div>
             </main>
 
-            {/* MODALS */}
+            {/* MODALS (UNTOUCHED) */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
@@ -302,16 +324,16 @@ const Dashboard = () => {
                             <input 
                                 placeholder="Locker Number" required
                                 value={newLocker.locker_number} onChange={(e) => setNewLocker({...newLocker, locker_number: e.target.value})}
-                                className="w-full px-4 py-2 border rounded-lg"
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                             <input 
                                 placeholder="Location" required
                                 value={newLocker.location} onChange={(e) => setNewLocker({...newLocker, location: e.target.value})}
-                                className="w-full px-4 py-2 border rounded-lg"
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                             />
                             <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-2 bg-slate-100 rounded-lg">Cancel</button>
-                                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg">Create</button>
+                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-2 bg-slate-100 rounded-lg font-bold">Cancel</button>
+                                <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold">Create</button>
                             </div>
                         </form>
                     </div>
@@ -327,7 +349,7 @@ const Dashboard = () => {
                         <input 
                             type="datetime-local" value={reservedUntil}
                             onChange={(e) => setReservedUntil(e.target.value)}
-                            className="w-full px-4 py-2 border rounded-lg mb-6"
+                            className="w-full px-4 py-2 border rounded-lg mb-6 outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <div className="flex gap-3">
                             <button onClick={() => setShowModal(false)} className="flex-1 py-2 font-bold text-slate-500">Cancel</button>
