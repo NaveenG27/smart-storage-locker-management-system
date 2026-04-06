@@ -3,7 +3,7 @@ import api from '../api';
 import { 
     Lock, Unlock, LogOut, ShieldCheck, 
     Search, Plus, Calendar, MapPin, 
-    User as UserIcon, Clock, XCircle 
+    User as UserIcon, Clock, XCircle, Trash2, Menu
 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 
@@ -17,17 +17,22 @@ const Dashboard = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [newLocker, setNewLocker] = useState({ locker_number: '', location: '' });
     const [loading, setLoading] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false); // For mobile menu toggle
     
     const navigate = useNavigate();
     const isAdmin = String(localStorage.getItem('is_admin')) === 'true';
     const currentUsername = localStorage.getItem('username');
 
     useEffect(() => {
-        fetchData();
+        fetchData(true);
+        const intervalId = setInterval(() => {
+            fetchData();
+        }, 5000);
+        return () => clearInterval(intervalId);
     }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (showLoading = false) => {
+        if (showLoading) setLoading(true);
         try {
             const [lockersRes, reservationsRes] = await Promise.all([
                 api.get('/api/lockers/'),
@@ -42,16 +47,14 @@ const Dashboard = () => {
                 navigate('/login');
             }
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
 
     const handleReserve = (locker) => {
         setActiveLocker(locker);
-        // Set default reserved_until to 1 hour from now
         const defaultTime = new Date();
         defaultTime.setHours(defaultTime.getHours() + 1);
-        // Format for datetime-local: YYYY-MM-DDTHH:mm
         const formatted = defaultTime.toISOString().slice(0, 16);
         setReservedUntil(formatted);
         setShowModal(true);
@@ -63,12 +66,10 @@ const Dashboard = () => {
                 locker: activeLocker.id,
                 reserved_until: new Date(reservedUntil).toISOString()
             });
-
             setShowModal(false);
             fetchData(); 
             alert(`Locker #${activeLocker.locker_number} reserved successfully!`);
         } catch (error) {
-            console.error("Backend Error:", error.response?.data);
             const serverMsg = error.response?.data?.error || "Locker might already be taken.";
             alert("Reservation Failed: " + serverMsg);
         }
@@ -77,13 +78,11 @@ const Dashboard = () => {
     const handleRelease = async (reservationId) => {
         if (!window.confirm("Are you sure you want to release this locker?")) return;
         try {
-            // Requirement-compliant PUT method
             await api.put(`/api/reservations/${reservationId}/release/`);
             fetchData();
             alert("Locker released successfully!");
         } catch (error) {
-            console.error("Release Error:", error);
-            alert("Failed to release locker.");
+            alert("Failed to release locker. " + (error.response?.data?.error || ""));
         }
     };
 
@@ -97,6 +96,18 @@ const Dashboard = () => {
             alert("New locker added successfully!");
         } catch (error) {
             alert("Failed to add locker. Ensure the number is unique.");
+        }
+    };
+
+    const handleDeleteLocker = async (lockerId, lockerNumber) => {
+        if (!window.confirm(`Are you sure you want to permanently delete Locker #${lockerNumber}?`)) return;
+        try {
+            await api.delete(`/api/lockers/${lockerId}/`);
+            fetchData(false); 
+            alert("Locker deleted successfully.");
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert("Failed to delete locker. It might have an active reservation.");
         }
     };
 
@@ -114,10 +125,11 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-            {/* Top Navigation */}
+            {/* Responsive Navigation */}
             <nav className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
+                        {/* Logo */}
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-600 p-2 rounded-lg text-white">
                                 <Lock size={20} />
@@ -125,7 +137,8 @@ const Dashboard = () => {
                             <span className="text-xl font-bold tracking-tight text-slate-800">SmartLocker</span>
                         </div>
 
-                        <div className="hidden md:flex items-center gap-6">
+                        {/* Desktop Search & Actions */}
+                        <div className="hidden md:flex items-center gap-6 flex-1 justify-end">
                             <div className="relative">
                                 <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
                                 <input 
@@ -153,12 +166,47 @@ const Dashboard = () => {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Mobile Menu Button */}
+                        <div className="md:hidden flex items-center gap-4">
+                            {isAdmin && <ShieldCheck size={18} className="text-amber-500" />}
+                            <button 
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                            >
+                                {isMenuOpen ? <XCircle size={24} /> : <Menu size={24} />}
+                            </button>
+                        </div>
                     </div>
+
+                    {/* Mobile Dropdown Menu */}
+                    {isMenuOpen && (
+                        <div className="md:hidden pb-4 space-y-4 border-t border-slate-100 pt-4 animate-in slide-in-from-top-2">
+                            <div className="relative px-2">
+                                <Search className="absolute left-5 top-2.5 text-slate-400" size={18} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search lockers..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between px-2">
+                                <span className="text-sm font-medium text-slate-600">User: {currentUsername}</span>
+                                <button 
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 bg-red-50 rounded-lg"
+                                >
+                                    <LogOut size={18} /> Logout
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </nav>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Header Information */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">System Dashboard</h1>
@@ -174,10 +222,7 @@ const Dashboard = () => {
                     )}
                 </div>
 
-                {/* Main Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Left Column: Locker Grid (2/3 width on desktop) */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -208,13 +253,25 @@ const Dashboard = () => {
                                                     }`}>
                                                         {locker.status === 'available' ? <Unlock size={24} /> : <Lock size={24} />}
                                                     </div>
-                                                    <span className={`text-[10px] uppercase font-black px-2 py-1 rounded tracking-widest ${
-                                                        locker.status === 'available' 
-                                                        ? 'bg-emerald-100 text-emerald-700' 
-                                                        : 'bg-rose-100 text-rose-700'
-                                                    }`}>
-                                                        {locker.status}
-                                                    </span>
+                                                    
+                                                    <div className="flex items-center gap-2">
+                                                        {isAdmin && (
+                                                            <button 
+                                                                onClick={() => handleDeleteLocker(locker.id, locker.locker_number)}
+                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete Locker"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                        <span className={`text-[10px] uppercase font-black px-2 py-1 rounded tracking-widest ${
+                                                            locker.status === 'available' 
+                                                            ? 'bg-emerald-100 text-emerald-700' 
+                                                            : 'bg-rose-100 text-rose-700'
+                                                        }`}>
+                                                            {locker.status}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 
                                                 <h3 className="font-bold text-lg text-slate-800">Locker #{locker.locker_number}</h3>
@@ -223,7 +280,7 @@ const Dashboard = () => {
                                                 </div>
 
                                                 <button
-                                                    onClick={() => locker.status === 'available' ? handleReserve(locker) : null}
+                                                    onClick={() => handleReserve(locker)}
                                                     disabled={locker.status !== 'available'}
                                                     className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all ${
                                                         locker.status === 'available' 
@@ -246,7 +303,6 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* Right Column: Reservation Sidebar (1/3 width on desktop) */}
                     <div className="lg:col-span-1 space-y-6">
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-24">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
@@ -266,19 +322,19 @@ const Dashboard = () => {
                                                         <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
                                                             Locker #{res.locker_number}
                                                         </span>
-                                                        {isAdmin && (
-                                                            <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-slate-600">
-                                                                <UserIcon size={12} strokeWidth={3} /> {res.user_username}
-                                                            </div>
-                                                        )}
+                                                        <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-slate-600">
+                                                            <UserIcon size={12} strokeWidth={3} /> {res.user_username}
+                                                        </div>
                                                     </div>
-                                                    <button 
-                                                        onClick={() => handleRelease(res.id)}
-                                                        className="text-slate-300 hover:text-red-500 transition-colors"
-                                                        title="Cancel/Release"
-                                                    >
-                                                        <XCircle size={18} />
-                                                    </button>
+                                                    {(isAdmin || res.user_username === currentUsername) && (
+                                                        <button 
+                                                            onClick={() => handleRelease(res.id)}
+                                                            className="text-slate-300 hover:text-red-500 transition-colors"
+                                                            title="Cancel/Release"
+                                                        >
+                                                            <XCircle size={18} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 
                                                 <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -289,7 +345,7 @@ const Dashboard = () => {
                                                     <div className="text-indigo-500 font-semibold italic">Active</div>
                                                 </div>
 
-                                                {!isAdmin && (
+                                                {(isAdmin || res.user_username === currentUsername) && (
                                                     <button 
                                                         onClick={() => handleRelease(res.id)}
                                                         className="w-full mt-4 py-2 bg-white text-rose-600 border border-rose-100 rounded-lg text-xs font-bold hover:bg-rose-50 transition-colors uppercase tracking-tight"
@@ -308,29 +364,14 @@ const Dashboard = () => {
                                 )}
                             </div>
                         </div>
-
-                        {/* Recent History (Optional/Admin only) */}
-                        {isAdmin && reservations.filter(r => !r.is_active).length > 0 && (
-                            <div className="bg-slate-100 rounded-xl p-4">
-                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Recent Releases</h3>
-                                <div className="space-y-2 opacity-60">
-                                    {reservations.filter(r => !r.is_active).slice(0, 3).map(res => (
-                                        <div key={res.id} className="text-xs flex justify-between text-slate-600">
-                                            <span>#{res.locker_number} by {res.user_username}</span>
-                                            <span>Ended</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </main>
 
-            {/* ADD LOCKER MODAL (ADMIN) */}
+            {/* MODALS (UNCHANGED) */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                             <h2 className="text-xl font-bold text-slate-800">Add New Locker</h2>
                             <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -344,8 +385,9 @@ const Dashboard = () => {
                                     type="text" 
                                     placeholder="e.g. L-104" 
                                     required 
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    value={newLocker.locker_number}
                                     onChange={(e) => setNewLocker({...newLocker, locker_number: e.target.value})}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                 />
                             </div>
                             <div>
@@ -354,32 +396,31 @@ const Dashboard = () => {
                                     type="text" 
                                     placeholder="e.g. Level 3, Hallway B" 
                                     required 
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    value={newLocker.location}
                                     onChange={(e) => setNewLocker({...newLocker, location: e.target.value})}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                 />
                             </div>
                             <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
-                                <button type="submit" className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 active:scale-95 transition-all">Create</button>
+                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Cancel</button>
+                                <button type="submit" className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100">Create</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* RESERVE LOCKER MODAL */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-8 text-center">
                             <div className="bg-emerald-50 w-20 h-20 rounded-full flex justify-center items-center mx-auto mb-6">
                                 <Unlock size={40} className="text-emerald-600" />
                             </div>
                             <h2 className="text-2xl font-black text-slate-800">Secure Locker</h2>
-                            <p className="text-slate-500 mt-2">You are reserving <span className="font-bold text-slate-700">#{activeLocker?.locker_number}</span> at {activeLocker?.location}.</p>
-                            
+                            <p className="text-slate-500 mt-2">You are reserving <span className="font-bold text-slate-700">#{activeLocker?.locker_number}</span></p>
                             <div className="mt-8 text-left">
-                                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-3 text-center text-wrap">Release Time (Locker will be freed then)</label>
+                                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-3 text-center">Release Time</label>
                                 <input 
                                     type="datetime-local"
                                     value={reservedUntil}
@@ -390,8 +431,8 @@ const Dashboard = () => {
                             </div>
                         </div>
                         <div className="flex bg-slate-50 border-t border-slate-100">
-                            <button onClick={() => setShowModal(false)} className="flex-1 px-8 py-5 text-slate-500 font-bold hover:text-slate-700 transition-colors">Cancel</button>
-                            <button onClick={confirmReservation} className="flex-1 px-8 py-5 bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all active:scale-95">Confirm</button>
+                            <button onClick={() => setShowModal(false)} className="flex-1 px-8 py-5 text-slate-500 font-bold hover:text-slate-700">Cancel</button>
+                            <button onClick={confirmReservation} className="flex-1 px-8 py-5 bg-emerald-600 text-white font-bold hover:bg-emerald-700">Confirm</button>
                         </div>
                     </div>
                 </div>

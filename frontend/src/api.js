@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// Set this to true when testing on your computer
+// Set this to false before you push to GitHub/Render
+const isLocal = true; 
+
+const BASE_URL = isLocal 
+    ? 'http://127.0.0.1:8000' 
+    : 'https://smart-storage-locker-management-system.onrender.com';
+
 const api = axios.create({
-    baseURL: 'https://smart-locker-api-rmg2.onrender.com',
+    baseURL: BASE_URL,
 });
 
 api.interceptors.request.use((config) => {
@@ -11,5 +19,12 @@ api.interceptors.request.use((config) => {
     }
     return config;
 });
+
+// Helper functions for your components
+export const lockerAPI = {
+    getLockers: () => api.get('/api/lockers/'),
+    reserveLocker: (lockerId) => api.post('/api/reservations/', { locker: lockerId }),
+    releaseLocker: (id) => api.put(`/api/reservations/${id}/release/`),
+};
 
 export default api;
